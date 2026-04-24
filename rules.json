@@ -1,0 +1,392 @@
+{
+  "_meta": {
+    "strategy_name": "Momentum Scalp Screener — Indian NSE",
+    "version": "1.0",
+    "author": "Custom",
+    "description": "Pre-market and live-market momentum scalping config for NSE F&O stocks. Backtest on TradingView before deploying on Kite.",
+    "market": "NSE India",
+    "session_hours": "09:15-15:30 IST",
+    "best_windows": ["09:15-10:30", "14:00-15:00"],
+    "avoid_windows": ["12:00-13:30"]
+  },
+
+  "watchlist": {
+    "nifty50_large_caps": [
+      "NSE:RELIANCE", "NSE:TCS", "NSE:HDFCBANK", "NSE:INFY", "NSE:ICICIBANK",
+      "NSE:SBIN", "NSE:BHARTIARTL", "NSE:ITC", "NSE:LT", "NSE:AXISBANK",
+      "NSE:KOTAKBANK", "NSE:HINDUNILVR", "NSE:MARUTI", "NSE:SUNPHARMA",
+      "NSE:TATAMOTORS", "NSE:BAJFINANCE", "NSE:WIPRO", "NSE:TITAN",
+      "NSE:ULTRACEMCO", "NSE:NTPC", "NSE:POWERGRID", "NSE:TECHM",
+      "NSE:HCLTECH", "NSE:ADANIENT", "NSE:ADANIPORTS", "NSE:ONGC",
+      "NSE:TATASTEEL", "NSE:JSWSTEEL", "NSE:COALINDIA", "NSE:HINDALCO",
+      "NSE:M&M", "NSE:BAJAJ-AUTO", "NSE:EICHERMOT", "NSE:HEROMOTOCO",
+      "NSE:BEL", "NSE:BPCL"
+    ],
+    "nifty50_mid_volatility": [
+      "NSE:INDUSINDBK", "NSE:BAJAJFINSV", "NSE:GRASIM", "NSE:CIPLA",
+      "NSE:DRREDDY", "NSE:DIVISLAB", "NSE:APOLLOHOSP", "NSE:TATACONSUM",
+      "NSE:BRITANNIA", "NSE:SBILIFE", "NSE:SHRIRAMFIN", "NSE:HDFCLIFE",
+      "NSE:NESTLEIND", "NSE:ASIANPAINT"
+    ],
+    "high_beta_fno": [
+      "NSE:TATASTEEL", "NSE:HINDALCO", "NSE:JSWSTEEL", "NSE:ADANIENT",
+      "NSE:TATAMOTORS", "NSE:BAJFINANCE", "NSE:INDUSINDBK", "NSE:SBIN",
+      "NSE:ICICIBANK", "NSE:AXISBANK", "NSE:ONGC", "NSE:BPCL",
+      "NSE:COALINDIA", "NSE:BEL"
+    ],
+    "market_context": [
+      "NSE:NIFTY", "NSE:BANKNIFTY", "NSE:INDIAVIX"
+    ]
+  },
+
+  "timeframes_to_check": {
+    "pre_market_analysis": ["1W", "1D"],
+    "entry_confirmation": ["15", "5", "3"],
+    "scalp_execution": ["3", "1"],
+    "_note": "Weekly and daily for trend/momentum context. 15m/5m for structure. 3m/1m for precise entries and VWAP scalps."
+  },
+
+  "bias_criteria": {
+    "bullish_scalp_setup": {
+      "daily": "Price > 9 EMA AND Price > 20 EMA AND RSI(14) between 55-80 AND MACD line > Signal line AND Price within 3% of prev day high",
+      "intraday_15m": "Price > VWAP AND Volume in first 15m candle >= 2x avg 15m volume AND Price making higher highs on 15m",
+      "intraday_3m": "Price pullback to VWAP or 9 EMA, bounce confirmed by green candle with volume spike"
+    },
+    "bearish_avoid": {
+      "daily": "Price < 20 EMA OR RSI(14) < 45 OR MACD line < Signal line",
+      "intraday": "Price < VWAP OR Volume declining on up-moves",
+      "_action": "NO LONG SCALPS — skip this stock entirely"
+    },
+    "neutral_avoid": {
+      "daily": "Price chopping between 9 EMA and 20 EMA, RSI between 45-55, no clear MACD direction",
+      "intraday": "Price oscillating around VWAP with no volume conviction",
+      "_action": "SKIP — no edge in choppy conditions"
+    },
+    "market_context_override": {
+      "nifty_down_gt_1pct": "AVOID all long scalps regardless of individual stock setup",
+      "india_vix_gt_20": "REDUCE position size by 50%",
+      "india_vix_gt_25": "NO TRADES — volatility regime too dangerous for scalping"
+    }
+  },
+
+  "indicators": {
+    "primary": {
+      "VWAP": {
+        "type": "session_vwap",
+        "reset": "daily",
+        "use": "Directional bias — ONLY scalp long when price > VWAP. VWAP pullback bounces are ideal entry zones.",
+        "bands": false
+      },
+      "EMA_9": {
+        "source": "close",
+        "length": 9,
+        "timeframe": "3",
+        "use": "Fast trend — price should be above this for entry. Pullbacks to 9 EMA on 3m chart = entry trigger."
+      },
+      "EMA_20": {
+        "source": "close",
+        "length": 20,
+        "timeframe": "3",
+        "use": "Trend filter — price must be above 20 EMA. If 9 EMA crosses above 20 EMA = bullish momentum confirmed."
+      },
+      "RSI_14": {
+        "length": 14,
+        "source": "close",
+        "timeframe": "D",
+        "bullish_zone": [55, 80],
+        "overbought_avoid": 80,
+        "weak_avoid_below": 45,
+        "use": "Momentum zone filter on daily. RSI 55-80 = sweet spot. Below 45 = weak, skip. Above 80 = overbought, risky entry."
+      },
+      "MACD": {
+        "fast": 12,
+        "slow": 26,
+        "signal": 9,
+        "timeframe": "D",
+        "use": "Bullish when MACD line > Signal line. Histogram expanding = strengthening momentum."
+      },
+      "Volume": {
+        "type": "standard",
+        "moving_average": {
+          "type": "SMA",
+          "length": 5,
+          "use": "Volume must be >= 1.5x the 5-day SMA. Ideal is >= 2x. No volume = no trade."
+        }
+      }
+    },
+    "secondary": {
+      "EMA_50": {
+        "source": "close",
+        "length": 50,
+        "timeframe": "D",
+        "use": "Higher timeframe trend. If price below 50 EMA on daily, the stock is in a downtrend — avoid for scalping."
+      },
+      "EMA_200": {
+        "source": "close",
+        "length": 200,
+        "timeframe": "D",
+        "use": "Long-term trend context. Price above 200 EMA = macro uptrend, adds conviction. Not required for entry but adds score."
+      },
+      "ADR_percent": {
+        "length": 14,
+        "use": "Average Daily Range as %. Must be >= 1.5%. Stocks with ADR < 1% don't move enough to scalp profitably.",
+        "_formula": "ADR% = SMA((High - Low) / Close * 100, 14)"
+      },
+      "Previous_Day_High": {
+        "use": "Key breakout level. If price crosses PDH with volume, it's a high-probability scalp entry."
+      },
+      "Previous_Day_Low": {
+        "use": "Stop loss reference. If price breaks PDL, momentum thesis is invalidated."
+      }
+    }
+  },
+
+  "volume_analysis": {
+    "pre_market_filter": {
+      "avg_daily_volume_min": 1000000,
+      "volume_surge_ratio": 1.5,
+      "volume_surge_lookback_days": 5,
+      "_note": "Previous day volume must be >= 1.5x the 5-day average. 10 lakh shares minimum avg daily volume."
+    },
+    "intraday_confirmation": {
+      "first_15m_candle_volume_vs_avg": 2.0,
+      "volume_on_up_moves": "increasing",
+      "volume_on_pullbacks": "decreasing",
+      "_note": "Healthy volume flow: rising on advances, declining on pullbacks. Opposite = distribution, avoid."
+    },
+    "delivery_percent": {
+      "min_for_conviction": 40,
+      "_note": "NSE-specific. Delivery % > 40% on previous sessions = genuine accumulation, not just intraday churn."
+    }
+  },
+
+  "order_book_analysis": {
+    "_note": "This is the PRIMARY EDGE. Only available via Kite API live, not backtest-able on TradingView. Use as confirmation when live.",
+    "imbalance_ratio": {
+      "formula": "Sum(Bid Qty all 5 levels) / Sum(Ask Qty all 5 levels)",
+      "strong_bullish": ">= 2.0",
+      "moderate_bullish": "1.5 - 2.0",
+      "neutral": "1.0 - 1.5",
+      "bearish_skip": "< 1.0"
+    },
+    "large_bid_detection": {
+      "threshold_shares": 50000,
+      "_note": "Single bid >= 50K shares at any level = institutional interest signal."
+    },
+    "bid_ask_spread_filter": {
+      "max_spread_pct": 0.10,
+      "_note": "Spread > 0.1% of LTP = poor liquidity for scalping. Skip."
+    }
+  },
+
+  "risk_rules": {
+    "max_risk_per_trade": "1% of total portfolio",
+    "max_stop_loss_from_entry": "0.5%",
+    "min_rr_ratio": 2.0,
+    "position_sizing": {
+      "formula": "Max Risk (1% of capital) / Stop Loss Distance (₹) = Number of shares",
+      "example": {
+        "capital": 1000000,
+        "risk_amount": 10000,
+        "entry_price": 500,
+        "stop_loss_distance": 2.50,
+        "shares": 4000,
+        "position_value": 2000000
+      }
+    },
+    "trailing_stop_loss": {
+      "phase_1": {"profit_threshold": "0.0%", "sl_at": "Initial SL (below VWAP or last 15m candle low)"},
+      "phase_2": {"profit_threshold": "0.5%", "sl_at": "Move to breakeven (entry price)"},
+      "phase_3": {"profit_threshold": "1.0%", "sl_at": "+0.5% above entry, exit 50% at Target 1"},
+      "phase_4": {"profit_threshold": "1.5-2.0%", "sl_at": "Trail by 0.3% below current high, exit remaining 50%"}
+    },
+    "time_based_exit": {
+      "max_hold_time_minutes": 20,
+      "_note": "If still in trade after 20 minutes, EXIT regardless. Scalp window has closed."
+    },
+    "no_follow_through_exit": {
+      "wait_time_minutes": 7,
+      "_note": "If stock doesn't move in your favour within 5-7 minutes after entry, exit at market."
+    },
+    "daily_limits": {
+      "max_trades_per_day": 5,
+      "stop_after_consecutive_losses": 2,
+      "stop_after_daily_gain_pct": 1.0,
+      "_note": "After 2 consecutive losses, STOP trading for the day. Also stop after 1% portfolio gain to lock profits."
+    },
+    "no_trades_during": [
+      "RBI monetary policy announcement",
+      "Union Budget day",
+      "FOMC decision (US)",
+      "US CPI / Non-Farm Payrolls release",
+      "India VIX > 25",
+      "Nifty down > 1%",
+      "12:00-13:30 IST lunch lull",
+      "Stocks with pending results in next 2 sessions",
+      "F&O ban list stocks"
+    ]
+  },
+
+  "entry_rules": {
+    "_note": "ALL conditions must be met simultaneously. Missing even one = NO TRADE.",
+    "checklist": [
+      "Daily: Price > 9 EMA AND Price > 20 EMA",
+      "Daily: RSI(14) between 55 and 80",
+      "Daily: MACD line > Signal line",
+      "Daily: ADR% >= 1.5%",
+      "Daily: Volume prev day >= 1.5x 5-day avg",
+      "Daily: Price within 3% of previous day high",
+      "Intraday: Price > VWAP",
+      "Intraday: First 15m candle volume >= 2x avg 15m volume",
+      "Intraday: Order book buy imbalance >= 1.5 (Kite live only)",
+      "Intraday: Bid-ask spread < 0.1%",
+      "Intraday: No major resistance within 1% above current price",
+      "Market: Nifty NOT down > 1%",
+      "Market: India VIX < 20 (or half position if 20-25)"
+    ],
+    "ideal_entry_triggers": [
+      "Price breaks above Previous Day High with volume spike",
+      "Price pulls back to VWAP, bounces with a strong green candle",
+      "9 EMA crosses above 20 EMA on 3m chart with rising volume",
+      "Price breaks above first 15m candle high (Opening Range Breakout)"
+    ]
+  },
+
+  "exit_rules": {
+    "target_1": {
+      "pct_from_entry": 1.0,
+      "action": "Exit 50% of position",
+      "move_sl_to": "+0.5% above entry"
+    },
+    "target_2": {
+      "pct_from_entry": 1.5,
+      "action": "Exit remaining 25% of position"
+    },
+    "target_3": {
+      "pct_from_entry": 2.0,
+      "action": "Exit final 25% of position"
+    },
+    "stop_loss_hit": {
+      "action": "Full exit, no averaging down, no hoping",
+      "max_loss": "0.5% from entry"
+    },
+    "time_exit": {
+      "minutes": 20,
+      "action": "Exit 100% regardless of P&L"
+    },
+    "momentum_stall_exit": {
+      "minutes": 7,
+      "condition": "Price not moved in favour",
+      "action": "Exit at market"
+    }
+  },
+
+  "scoring_system": {
+    "_note": "Composite score 0-100. Only trade stocks scoring >= 55. Strong setups >= 70.",
+    "volume_score": {
+      "max_points": 30,
+      "rules": {
+        "vol_ratio_gte_3.0": 30,
+        "vol_ratio_gte_2.0": 25,
+        "vol_ratio_gte_1.5": 20,
+        "vol_ratio_gte_1.2": 10,
+        "below_1.2": 0
+      }
+    },
+    "order_imbalance_score": {
+      "max_points": 30,
+      "rules": {
+        "imb_ratio_gte_3.0": 30,
+        "imb_ratio_gte_2.0": 25,
+        "imb_ratio_gte_1.5": 20,
+        "imb_ratio_gte_1.2": 10,
+        "below_1.2": 0
+      },
+      "_note": "Only available via Kite live. During TradingView backtest, set this to 15 (neutral) for all stocks."
+    },
+    "momentum_score": {
+      "max_points": 20,
+      "rules": {
+        "price_change_gt_1.5pct_AND_near_high_gt_80pct": 20,
+        "price_change_gt_1.0pct_AND_near_high_gt_60pct": 15,
+        "price_change_gt_0.5pct_AND_near_high_gt_50pct": 10,
+        "default": 5
+      }
+    },
+    "news_catalyst_score": {
+      "max_points": 20,
+      "rules": {
+        "earnings_beat_or_upgrade": 20,
+        "sector_tailwind": 15,
+        "general_positive_news": 10,
+        "no_news": 5,
+        "negative_news": "0 — SKIP the stock"
+      }
+    },
+    "signal_thresholds": {
+      "strong_buy": ">= 70",
+      "moderate": "55-69",
+      "weak": "40-54",
+      "skip": "< 40"
+    }
+  },
+
+  "gap_analysis": {
+    "ideal_gap_up": {"min_pct": 0.5, "max_pct": 2.0},
+    "caution_gap": {"min_pct": 2.0, "max_pct": 3.0, "_note": "Reduce position size"},
+    "avoid_gap": {"above_pct": 3.0, "_note": "Likely exhaustion — skip, don't chase"},
+    "gap_down": {"action": "NO LONG SCALPS on gap-down stocks"}
+  },
+
+  "sector_momentum": {
+    "_note": "If 3+ stocks from the same sector appear in the screener, it's a sector-wide move. Increases conviction. Pick the strongest relative performer in that sector.",
+    "sectors_to_track": [
+      "Banking (HDFCBANK, ICICIBANK, SBIN, AXISBANK, KOTAKBANK, INDUSINDBK)",
+      "IT (TCS, INFY, WIPRO, HCLTECH, TECHM)",
+      "Metals (TATASTEEL, JSWSTEEL, HINDALCO, COALINDIA)",
+      "Auto (TATAMOTORS, M&M, MARUTI, BAJAJ-AUTO, EICHERMOT, HEROMOTOCO)",
+      "Pharma (SUNPHARMA, CIPLA, DRREDDY, DIVISLAB, APOLLOHOSP)",
+      "Energy (RELIANCE, ONGC, BPCL, NTPC, POWERGRID)",
+      "FMCG (HINDUNILVR, ITC, NESTLEIND, BRITANNIA, TATACONSUM)"
+    ]
+  },
+
+  "transaction_cost_awareness": {
+    "zerodha_intraday_equity": {
+      "brokerage_per_order": 20,
+      "stt_sell_side": "0.025%",
+      "exchange_charges_per_side": "0.00345%",
+      "gst_on_brokerage_and_charges": "18%",
+      "sebi_charges": "10 per crore",
+      "stamp_duty_buy_side": "0.003%"
+    },
+    "approx_round_trip_cost_for_5L_trade": "₹100-150",
+    "min_move_to_breakeven": "~0.03%",
+    "_note": "Your 1-2% targets provide ~30-60x the breakeven cost. Equity scalping is cost-efficient vs options (0.1% STT on sell)."
+  },
+
+  "tradingview_backtest_notes": {
+    "pine_script_indicators_to_add": [
+      "Built-in VWAP (Session)",
+      "EMA 9 on 3m chart",
+      "EMA 20 on 3m chart",
+      "EMA 50 on Daily chart",
+      "RSI (14) on Daily chart",
+      "MACD (12, 26, 9) on Daily chart",
+      "Volume with 5-period SMA overlay"
+    ],
+    "alerts_to_set": [
+      "Price crosses above VWAP — potential entry",
+      "RSI crosses above 55 on daily — entering momentum zone",
+      "Volume > 2x SMA(5) — volume surge detected",
+      "9 EMA crosses above 20 EMA on 3m — momentum crossover",
+      "Price crosses above Previous Day High — breakout trigger"
+    ],
+    "limitations_vs_live": [
+      "Order book imbalance (bid/ask depth) is NOT available on TradingView — this is Kite-only live data. During backtest, assume neutral imbalance score (15/30).",
+      "Pre-market session data (9:00-9:15 AM) is not on TradingView charts.",
+      "Delivery percentage is end-of-day NSE data, not available intraday on TradingView.",
+      "News catalyst scoring requires manual web search — not automatable in TradingView."
+    ]
+  }
+}
