@@ -1,0 +1,19 @@
+{
+  "NSE:COALINDIA": [55, 4, 3],
+  "NSE:NESTLEIND": [72, 13, 0],
+  "NSE:ICICIBANK": [82, 0, 0],
+  "NSE:BEL": [85, 0, 0],
+  "NSE:HDFCBANK": [60, 0, 1],
+  "NSE:TRENT": [80, 0, 0],
+  "NSE:BAJFINANCE": [68, 5, 2],
+  "NSE:CIPLA": [50, 7, 4],
+  "NSE:HDFCAMC": [52, 16, 3],
+  "NSE:SBILIFE": [78, 10, 0],
+  "NSE:BAJAJ-AUTO": [55, 8, 2],
+  "NSE:AXISBANK": [62, 8, 1],
+  "NSE:CHOLAFIN": [80, 0, 0],
+  "NSE:SBIN": [58, 10, 2],
+  "NSE:JSWSTEEL": [50, 12, 3],
+  "NSE:POWERGRID": [55, 9, 2],
+  "NSE:NTPC": [70, 6, 1]
+}
