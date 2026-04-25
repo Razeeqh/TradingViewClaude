@@ -17,13 +17,21 @@ OUTPUT: NSE_Swing_FallenAngels.xlsx — dark-theme Excel with:
 ─────────────────────────────────────────────────────────────────────────────
 """
 import json, os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
+# ── Optional cross-module imports ────────────────────────────────────────────
+try:
+    from permanent_damage_blacklist import get_blacklist_set
+    BLACKLIST = get_blacklist_set(["PERMANENT_AVOID", "WAIT_FOR_RESOLUTION"])
+except Exception:
+    BLACKLIST = set()
+
 EXCEL_PATH    = r"C:\Users\razee\OneDrive\Desktop\TradingClaude\NSE_Swing_FallenAngels.xlsx"
 FRESH_JSON    = r"C:\Users\razee\OneDrive\Desktop\TradingClaude\fallen_angels_fresh.json"
+MACRO_JSON    = r"C:\Users\razee\OneDrive\Desktop\TradingClaude\macro_context.json"
 TODAY         = date.today()
 
 # ── Palette ───────────────────────────────────────────────────────────────────
@@ -37,8 +45,46 @@ STATUS_META = {
     "🟢 ACCUMULATE":          (HIGH_BG, GREEN, "At entry zone — start staggered buying"),
     "🔵 WATCH":               (MED_BG,  BLUE,  "Above entry — wait for retest or catalyst"),
     "🟡 BUILDING":            ("3D2C00", AMBER, "Below entry — let setup form, monitor weekly"),
+    "⏳ EARNINGS THIS WEEK":  ("3D2C00", CYAN,  "Defer entry — binary event in next 7 days"),
+    "🏗 CORP ACTION":         ("2D2D2D", PURPLE := "9C27B0", "Demerger / split / bonus pending — recalibrate post-event"),
     "🔴 INVALIDATED":        ("2D0000", RED,   "Stop-loss hit OR thesis broken (governance issue surfaced)"),
 }
+
+# ── Corporate-action handling ────────────────────────────────────────────────
+# When a stock is mid-corp-action, freeze its status and surface action note.
+CORPORATE_ACTIONS = {
+    "NSE:TATAMOTORS": ("Demerged Oct 2025 → TMPV (passenger) + TMCV (commercial). Switch tracking to NSE:TATAMOTORS-PV / NSE:TATAMOTORS-CV.", "RESTRUCTURE"),
+    "NSE:VEDL":       ("Demerger record date 01 May 2026 → 1:1 split into 4 entities. Hold through; recalibrate ATH/CMP/SL/T1-3 post-event.", "PENDING"),
+}
+
+# ── Macro risk overlay ────────────────────────────────────────────────────────
+# macro_context.json schema (written by Saturday Opus 4.7 task):
+#   { "vix": 18.5, "fii_flow_week_cr": -3320, "nifty_week_pct": -1.14,
+#     "brent_usd": 102, "geopolitical_risk": "HIGH", "rbi_stance": "HOLD" }
+def load_macro_context():
+    if not os.path.exists(MACRO_JSON):
+        return {}
+    try:
+        with open(MACRO_JSON) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def macro_risk_multiplier(macro):
+    """Returns (multiplier 0.0-1.0, label, reason)."""
+    if not macro:
+        return 1.0, "NORMAL", "No macro override"
+    vix = macro.get("vix", 15)
+    fii = macro.get("fii_flow_week_cr", 0)
+    nifty_week = macro.get("nifty_week_pct", 0)
+    geopol = macro.get("geopolitical_risk", "LOW")
+    if vix > 25 or geopol == "EXTREME":
+        return 0.0, "RISK-OFF", f"VIX {vix} or geopolitical EXTREME — HOLD CASH"
+    if vix > 22 or fii < -10000 or nifty_week < -3:
+        return 0.5, "DEFENSIVE", f"VIX {vix} / FII -₹{abs(fii)}cr / Nifty {nifty_week}% — HALF SIZE"
+    if vix > 20 or fii < -5000:
+        return 0.75, "CAUTIOUS", f"VIX {vix} / FII -₹{abs(fii)}cr — REDUCE BY 25%"
+    return 1.0, "NORMAL", "Macro green — full size"
 
 def fill(h): return PatternFill("solid", fgColor=h)
 def font(color=WHITE, bold=False, size=9, italic=False):
@@ -288,8 +334,13 @@ def days_until(catalyst_date_str):
             continue
     return None
 
-def calc_status(entry_zone, sl, current_price, catalyst_date_str):
-    """Return one of STATUS_META keys based on price & catalyst proximity."""
+def calc_status(symbol, entry_zone, sl, current_price, catalyst_date_str, earnings_dates=None):
+    """Return one of STATUS_META keys based on price, catalyst proximity,
+       earnings-week proximity, and corporate-action state.
+    earnings_dates: list of "DD Mmm YYYY" date strings of upcoming earnings."""
+    # Corporate-action freeze
+    if symbol in CORPORATE_ACTIONS:
+        return "🏗 CORP ACTION"
     if not isinstance(current_price, (int, float)) or current_price <= 0:
         return "🟡 BUILDING"
     try:
@@ -298,6 +349,14 @@ def calc_status(entry_zone, sl, current_price, catalyst_date_str):
         return "🟡 BUILDING"
     if current_price <= sl:
         return "🔴 INVALIDATED"
+
+    # Earnings-week defer: if any earnings within 7 days, defer entry
+    if earnings_dates:
+        for edate_str in earnings_dates:
+            d = days_until(edate_str)
+            if d is not None and -3 <= d <= 7:
+                return "⏳ EARNINGS THIS WEEK"
+
     days = days_until(catalyst_date_str) or 9999
     if lo <= current_price <= hi and 0 < days <= 7:
         return "🚀 BREAKOUT IMMINENT"
@@ -338,6 +397,17 @@ def merge_fresh(meta):
 def build():
     meta = merge_fresh({k: dict(v) for k, v in FALLEN_ANGELS.items()})
 
+    # ── Blacklist exclusion ──
+    excluded = []
+    for sym in list(meta.keys()):
+        if sym in BLACKLIST:
+            excluded.append(sym)
+            del meta[sym]
+
+    # ── Macro overlay ──
+    macro = load_macro_context()
+    multiplier, regime, reason = macro_risk_multiplier(macro)
+
     wb = Workbook()
     ws = wb.active
     ws.title = "NSE Fallen Angels — Swing"
@@ -353,15 +423,17 @@ def build():
     ws["A1"].alignment = mid()
     ws.row_dimensions[1].height = 28
 
-    # ── Sub-header ──
+    # ── Macro regime banner ──
+    regime_color = GREEN if regime == "NORMAL" else AMBER if regime == "CAUTIOUS" else ORANGE if regime == "DEFENSIVE" else RED
     ws.merge_cells("A2:T2")
-    ws["A2"] = ("Filter: 25–50%+ drawdown · Drop reason = TEMPORARY (tariffs, war, sector cycle, one-time charges) · "
-                "EXCLUDES IT services (AI risk), governance issues, fraud · "
-                "Time horizon: 3–12 months · Risk: 5–7% SL")
-    ws["A2"].font = Font(name="Arial", color=GREY, italic=True, size=9)
-    ws["A2"].fill = fill(DARK_BG)
+    ws["A2"] = f"📡 MACRO REGIME: {regime}  |  Position-size multiplier: {multiplier:.0%}  |  {reason}"
+    ws["A2"].font = Font(name="Arial", color=regime_color, bold=True, size=10)
+    ws["A2"].fill = fill(HEADER_BG)
     ws["A2"].alignment = mid()
     ws.row_dimensions[2].height = 18
+
+    # ── Sub-header ──
+    # (Original sub-header replaced by macro regime banner above.)
 
     # ── Status legend ──
     ws.merge_cells("A3:T3")
@@ -393,11 +465,14 @@ def build():
         d = meta[sym]
         r = idx + 4
 
-        status   = calc_status(d["entry_zone"], d["sl"], d["cmp"], d.get("catalyst_date"))
+        status   = calc_status(sym, d["entry_zone"], d["sl"], d["cmp"],
+                                d.get("catalyst_date"), d.get("earnings_dates"))
         s_bg, s_fg, _ = STATUS_META[status]
         conf_bg = HIGH_BG if d["confidence"] == "HIGH" else MED_BG if d["confidence"] == "MEDIUM" else LOW_BG
         row_bg  = "141414" if idx % 2 else "0D0D0D"
-        row_bg  = "2D0000" if status == "🔴 INVALIDATED" else row_bg
+        if status == "🔴 INVALIDATED": row_bg = "2D0000"
+        if status == "🏗 CORP ACTION": row_bg = "2D2D2D"
+        if status == "⏳ EARNINGS THIS WEEK": row_bg = "3D2C00"
 
         # Risk-Reward to T2
         try:
@@ -490,7 +565,7 @@ def build():
     by_status = {}
     for sym in sorted_syms:
         d = meta[sym]
-        s = calc_status(d["entry_zone"], d["sl"], d["cmp"], d.get("catalyst_date"))
+        s = calc_status(sym, d["entry_zone"], d["sl"], d["cmp"], d.get("catalyst_date"), d.get("earnings_dates"))
         by_status.setdefault(s, []).append(f"{sym} (-{d['drawdown_pct']:.0f}%, {d['confidence']})")
     for status_key in STATUS_META:
         if status_key in by_status:
