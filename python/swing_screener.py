@@ -29,6 +29,22 @@ try:
 except Exception:
     BLACKLIST = set()
 
+try:
+    from volatility_engine import smart_sl, smart_targets, get_volatility_profile
+    HAS_VOL_ENGINE = True
+except Exception:
+    HAS_VOL_ENGINE = False
+
+try:
+    from sector_rotation import get_sector_boost
+except Exception:
+    def get_sector_boost(symbol): return 0
+
+try:
+    from flow_tracker import get_smart_money_score
+except Exception:
+    def get_smart_money_score(symbol): return 0
+
 EXCEL_PATH    = r"C:\Users\razee\OneDrive\Desktop\TradingClaude\NSE_Swing_FallenAngels.xlsx"
 FRESH_JSON    = r"C:\Users\razee\OneDrive\Desktop\TradingClaude\fallen_angels_fresh.json"
 MACRO_JSON    = r"C:\Users\razee\OneDrive\Desktop\TradingClaude\macro_context.json"
@@ -474,15 +490,34 @@ def build():
         if status == "🏗 CORP ACTION": row_bg = "2D2D2D"
         if status == "⏳ EARNINGS THIS WEEK": row_bg = "3D2C00"
 
-        # Risk-Reward to T2
+        # Volatility-based SL + targets (overrides hardcoded values)
         try:
             lo, hi = [float(x.strip()) for x in d["entry_zone"].replace("–", "-").split("-")]
             entry_mid = (lo + hi) / 2
+        except Exception:
+            entry_mid = d.get("cmp", 0) or 0
+
+        if HAS_VOL_ENGINE and entry_mid > 0:
+            tgts = smart_targets(entry_mid, sym, horizon="fallen_angel")
+            d["sl"] = tgts["sl"]
+            d["t1"] = tgts["t1"]
+            d["t2"] = tgts["t2"]
+            d["t3"] = tgts["t3"]
+            d["vol_regime"] = tgts["vol_regime"]
+
+        # Risk-Reward to T2
+        try:
             risk = entry_mid - d["sl"]
             reward = d["t2"] - entry_mid
             rr = f"{reward/risk:.1f}:1" if risk > 0 else "—"
         except Exception:
             rr = "—"
+
+        # Sector-rotation + smart-money boost adds confidence override
+        sec_boost = get_sector_boost(sym)
+        flow_score = get_smart_money_score(sym)
+        if sec_boost >= 10 and flow_score >= 60 and d["confidence"] != "HIGH":
+            d["confidence"] = "HIGH"  # promoted by hot sector + smart money
 
         cells = [
             idx, sym, d["name"], d["sector"],

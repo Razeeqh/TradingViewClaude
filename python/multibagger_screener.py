@@ -25,12 +25,28 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-# Import blacklist
+# Cross-module imports
 try:
     from permanent_damage_blacklist import get_blacklist_set
     BLACKLIST = get_blacklist_set(["PERMANENT_AVOID", "WAIT_FOR_RESOLUTION"])
 except Exception:
     BLACKLIST = set()
+
+try:
+    from volatility_engine import smart_sl, smart_targets, position_size
+    HAS_VOL_ENGINE = True
+except Exception:
+    HAS_VOL_ENGINE = False
+
+try:
+    from sector_rotation import get_sector_boost
+except Exception:
+    def get_sector_boost(symbol): return 0
+
+try:
+    from flow_tracker import get_smart_money_score
+except Exception:
+    def get_smart_money_score(symbol): return 0
 
 EXCEL_PATH    = r"C:\Users\razee\OneDrive\Desktop\TradingClaude\NSE_Multibagger_Picks.xlsx"
 FRESH_JSON    = r"C:\Users\razee\OneDrive\Desktop\TradingClaude\multibagger_fresh.json"
@@ -516,6 +532,19 @@ def build():
         r = idx + 3
         conv_bg, conv_fg, _ = CONV_META.get(d["conviction"], (DARK_BG, GREY, ""))
         row_bg = ROW_ALT if idx % 2 else DARK_BG
+
+        # Volatility-based smart SL (multibagger horizon = 2.0× ATR for breathing room)
+        if HAS_VOL_ENGINE and isinstance(d.get("cmp"), (int, float)) and d["cmp"] > 0:
+            sl_data = smart_sl(d["cmp"], sym, horizon="multibagger")
+            d["sl"] = sl_data["sl"]
+            d["vol_regime"] = sl_data["vol_regime"]
+
+        # Promote conviction if hot sector + smart-money buying
+        sec_boost = get_sector_boost(sym)
+        flow_score = get_smart_money_score(sym)
+        if sec_boost >= 10 and flow_score >= 70 and d["conviction"] != "VERY HIGH":
+            if d["conviction"] == "MEDIUM": d["conviction"] = "HIGH"
+            elif d["conviction"] == "HIGH":  d["conviction"] = "VERY HIGH"
 
         cells = [
             idx, sym, d["name"], d["sector"],
