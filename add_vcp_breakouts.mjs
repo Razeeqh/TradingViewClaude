@@ -1,9 +1,12 @@
 /**
- * Adds today's TOP VCP breakout candidates to TradingView watchlist.
- * Source of truth: NSE_VCP_Breakouts.xlsx + vcp_fresh.json from daily 8 AM scan.
+ * Adds the FULL 3-tier VCP universe (Largecap + Midcap + Smallcap) to
+ * TradingView watchlist — exactly as stockexploder methodology recommends.
  *
- * VCP candidates target 8-20% intraday/short-swing moves vs 1-2% large-cap scalps.
- * Mark Minervini methodology + stockexploder reference.
+ * Risk-balanced: largecaps for steadier 5-12% moves, midcaps for 10-18%,
+ * smallcaps for explosive 15-30%.
+ *
+ * Order: priority by stage (BREAKING OUT → PIVOT-READY → CONTRACTING)
+ * within each cap tier, so the watchlist ordering reflects what to act on.
  */
 import { connect, evaluate, getClient } from './src/connection.js';
 
@@ -11,31 +14,40 @@ await connect();
 const c = await getClient();
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// TOP VCP BREAKOUT CANDIDATES (refresh daily via 8 AM scheduled task)
-// Priority order: 🚀 BREAKING OUT → 🟢 PIVOT — READY → 🔵 CONTRACTING (top conviction)
-const VCP_TOP_PICKS = [
-  // 🚀 BREAKING OUT — execute at open
-  'NSE:RPEL',         // Raghav Productivity — VCP breakout confirmed, +20% expected 3D
-  // 🟢 PIVOT — READY — enter on breakout confirmation
-  'NSE:SEDEMAC',      // Sedemac Mechatronics — pivot ₹1,820, +18% expected
-  // 🔵 CONTRACTING — top conviction, watch closely this week
-  'NSE:AZAD',         // Azad Engineering — aerospace + defence, +16% expected
-  'NSE:KAYNES',       // Kaynes Technology — EMS + semicon, +14% expected
-  'NSE:ZAGGLE',       // Zaggle — fintech B2B, +18% expected
-  'NSE:CYIENTDLM',    // Cyient DLM — aerospace EMS, +16% expected
-  'NSE:IDEAFORGE',    // ideaForge — defence drones, +15% expected
-  'NSE:DATAPATTNS',   // Data Patterns — defence electronics
-  'NSE:ASTRAMICRO',   // Astra Microwave — defence radar
-  'NSE:PARAS',        // Paras Defence — optronics + space
-  'NSE:HBLENGINE',    // HBL Power — Kavach + submarine batteries
-  'NSE:TITAGARH',     // Titagarh Rail
-  'NSE:JYOTICNC',     // Jyoti CNC — machine tools
-  'NSE:ADITYA-VISION',// Aditya Vision — retail
-  'NSE:KIRLOSBROS',   // Kirloskar Brothers — pumps
-  'NSE:TIPSINDLTD',   // Tips Industries — music
-  'NSE:GANESHA',      // Ganesha Ecosphere — recycled PET
-  'NSE:AVALON',       // Avalon Tech — EMS aero
-  'NSE:PREMIERENE',   // Premier Energies — solar cells
+// ── 3-TIER VCP UNIVERSE — 21 stocks ────────────────────────────────────────
+const VCP_PICKS = [
+  // ══════════════════════════════════════════════════════════════════════
+  // ██ LARGECAP VCP (5)  — MCap > ₹50,000 cr  — moves 5-12% in 3-10 days
+  // ══════════════════════════════════════════════════════════════════════
+  'NSE:ADANIPORTS',   // 🟢 PIVOT — READY  (at 52w high ₹1,628 — breakout imminent)
+  'NSE:BAJFINANCE',   // 🟢 PIVOT — READY  (tight base ₹900-925)
+  'NSE:BHEL',         // 🟢 PIVOT — READY  (₹1.2L cr order book + capex super-cycle)
+  'NSE:TATAPOWER',    // 🔵 CONTRACTING    (3 contractions, base tightening)
+  'NSE:PREMIERENE',   // 🔵 CONTRACTING    (Solar — ALMM regime supportive)
+
+  // ══════════════════════════════════════════════════════════════════════
+  // ██ MIDCAP VCP (8)  — MCap ₹15k-50k cr  — moves 10-18% in 2-5 days
+  // ══════════════════════════════════════════════════════════════════════
+  'NSE:HBLENGINE',    // 🚀 BREAKING OUT   (vol 2.8x avg + 52w high broken)
+  'NSE:DATAPATTNS',   // 🚀 BREAKING OUT   (broke ₹3,900, Nippon MF bulk buy)
+  'NSE:AVALON',       // 🚀 BREAKING OUT   (vol 2.8x — 52w high broken)
+  'NSE:KAYNES',       // 🔵 CONTRACTING    (semicon OSAT + ICICI Pru bulk)
+  'NSE:JYOTICNC',     // 🔵 CONTRACTING    (defence CNC orders ramping)
+  'NSE:ASTRAMICRO',   // 🔵 CONTRACTING    (radar exports + DRDO supply)
+  'NSE:KIRLOSBROS',   // 🔵 CONTRACTING    (Jal Jeevan + naval pumps)
+  'NSE:TITAGARH',     // 🔵 CONTRACTING    (Vande Bharat + freight wagons)
+
+  // ══════════════════════════════════════════════════════════════════════
+  // ██ SMALLCAP VCP (8)  — MCap < ₹15k cr  — moves 15-30% in 1-3 days
+  // ══════════════════════════════════════════════════════════════════════
+  'NSE:AZAD',         // 🚀 BREAKING OUT   (GE Aero + Rolls-Royce supplier)
+  'NSE:SEDEMAC',      // 🟢 PIVOT — READY  (textbook 8→4→2% contractions, IPO Mar-26)
+  'NSE:RPEL',         // 🟢 PIVOT — READY  (silica ramming mass — steel capex)
+  'NSE:IDEAFORGE',    // 🔵 CONTRACTING    (defence drones, Hormuz tension)
+  'NSE:PARAS',        // 🔵 CONTRACTING    (optronics + space)
+  'NSE:ZAGGLE',       // 🔵 CONTRACTING    (B2B fintech SaaS)
+  'NSE:CYIENTDLM',    // 🔵 CONTRACTING    (aerospace EMS — Q4 beat)
+  'NSE:GANECOS',      // 🟡 BASING         (recycled PET — ESG mandate)
 ];
 
 async function ensureWatchlistOpen() {
@@ -85,14 +97,18 @@ async function addSymbol(symbol) {
 }
 
 await ensureWatchlistOpen();
-console.log('\n🚀 Adding VCP Breakout candidates to TradingView watchlist:\n');
-console.log('   (8-20% intraday move targets — Minervini VCP + stockexploder methodology)\n');
+console.log('\n🚀 Adding 3-tier VCP Breakout candidates to TradingView watchlist:\n');
+console.log('   LARGECAP VCP (5)  — moves 5-12%  in 3-10 days');
+console.log('   MIDCAP VCP   (8)  — moves 10-18% in 2-5 days');
+console.log('   SMALLCAP VCP (8)  — moves 15-30% in 1-3 days');
+console.log('\n   [Mark Minervini SEPA + stockexploder methodology]\n');
 
-for (const sym of VCP_TOP_PICKS) await addSymbol(sym);
+for (const sym of VCP_PICKS) await addSymbol(sym);
 
-console.log(`\n🏁 Done — ${VCP_TOP_PICKS.length} VCP candidates added.`);
-console.log('\n📌 Trade discipline:');
-console.log('   • Wait for ACTUAL pivot breakout + volume ≥ 2x avg');
-console.log('   • Hard SL 5% below pivot — no exceptions');
-console.log('   • Book 30% at +5-8%, 40% at +12-15%, trail rest');
-console.log('   • Max 2 VCP trades concurrent');
+console.log(`\n🏁 Done — ${VCP_PICKS.length} VCP candidates added across 3 cap tiers.`);
+console.log('\n📌 Trade discipline (every cap tier):');
+console.log('   • Wait for pivot breakout + volume ≥ 2x avg before entry');
+console.log('   • Hard SL just below pivot — no exceptions');
+console.log('   • BOOK: T1 +5% → 40%   T2 +14% → 35%   T3 +24% → trail 25%');
+console.log('   • Smaller size on smallcaps — same 1% portfolio risk per trade');
+console.log('   • Max 2 VCP positions concurrent');
